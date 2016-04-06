@@ -3,7 +3,10 @@ library(ggplot2)
 library(chron)
 library(stringi)
 
-traffic.data <- read.csv("~/Desktop/DataScience/traffic-data.csv", stringsAsFactors = FALSE)
+##set system to read arabic
+Sys.setlocale("LC_ALL", "en_US.UTF-8")
+
+traffic.data <- read.csv("~/Desktop/DataScience/traffic-data.csv", stringsAsFactors = FALSE, fileEncoding="UTF-8")
 class(traffic.data)
 dim(traffic.data)
 names(traffic.data)
@@ -58,6 +61,18 @@ attr(traffic.data$new_crawl_date, "tzone") <- "Egypt"
 traffic.data$question <- stri_extract_first_regex(traffic.data$rd.rp.cm, "\\?")
 traffic.data$question <- ifelse(grepl("(?)", traffic.data$question), 1, 0)
 traffic.data$question %>% table()
+
+##extract speed from data
+traffic.data$speed <- stri_extract_first_regex(traffic.data$rd.rp.cm, "[0-9]+ km/h")
+traffic.data$speed <- as.numeric(as.character(traffic.data$speed))
+
+##inspect the data
+traffic.data %>% filter(rd.rp.cm == "radar") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "lagna") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "حادثة") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "لجنة") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "accident") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+
 
 
 
