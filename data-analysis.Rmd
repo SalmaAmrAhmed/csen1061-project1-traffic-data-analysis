@@ -251,10 +251,10 @@ left_join(top_10_cairo, cairo_speeds, "rd.ri")
 
       rd.ri  count     speed
       (int)  (int)     (dbl)
- 1    166    3218      60.75797
- 2    32     3075      69.27468
- 3    31     2998      68.97272
- 4    164    2862      55.36564
+## 1    166    3218      60.75797
+## 2    32     3075      69.27468
+## 3    31     2998      68.97272
+## 4    164    2862      55.36564
  5    167    2318      51.53032
  6    307    2297      131.68868
  7    165    2249      55.31048
@@ -270,16 +270,16 @@ left_join(top_10_alex, alex_speeds, "rd.ri")
 
      rd.ri  count     speed
      (int)  (int)     (dbl)
- 1    520   2621      129.98000
- 2     99   423        NA ---> speed not reported
- 3     56   345      43.06481
- 4     43   344      49.41414
- 5     55   265      43.39850
- 6     40   251      47.43299
- 7     42   248      50.13592
- 8     39   246      56.95122
- 9     38   228      53.55932
- 10    47   191      33.41667
+## 1    520   2621      129.98000
+## 2     99   423        NA ---> speed not reported
+## 3     56   345      43.06481
+## 4     43   344      49.41414
+## 5     55   265      43.39850
+## 6     40   251      47.43299
+## 7     42   248      50.13592
+## 8     39   246      56.95122
+## 9     38   228      53.55932
+## 10    47   191      33.41667
 
 From above it it clear that the average speed of the mostly reported roads in Cairo is higher than that in Alex. Also, notice that all previously mentioned speeds are in km/hr.
 
