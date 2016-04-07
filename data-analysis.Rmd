@@ -3,4 +3,392 @@ title: Traffic Data Analysis
 output: html_document
 ---
 
-this is where things start :)
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(chron)
+library(stringi)
+library(knitr)
+```
+
+#Date Checking and Inspecting:
+
+```{r}
+traffic.data <- read.csv("~/Desktop/DataScience/traffic-data.csv", stringsAsFactors = FALSE, fileEncoding="UTF-8")
+```
+First we Load the csv file, then we proceed on using some functions that enable us get a deeper insight of the data.
+```{r}
+class(traffic.data)
+dim(traffic.data)
+names(traffic.data)
+str(traffic.data)
+glimpse(traffic.data)
+summary(traffic.data)
+head(traffic.data, 50)
+tail(traffic.data, 100)
+summary(traffic.data)
+```
+Inspecting the HTML and the XML crawled, we discover that some rows and columns could be dropped and will have no need in our analysis.
+
+#Data Cleaning:
+
+The following columns ad.aid, ad.bgcl, ad.bgcls, ad.fncl, ad.fncls, ad.lid, ad.logo, ad.logo2x, ad.logoAndroidS, ad.logoAndroidH, ad.cm, ad.url, ad.g; thus remove them.
+```{r}
+traffic.data = traffic.data[-c(2:14)]
+
+```
+Inspecting more, will find that rd.img, rd.rp.rpImg, rd.rp.img are just images that could be removed too, further more the two columns rd.rp.type and rd.cl of constant value = 0 thus could be removed.
+```{r}
+traffic.data$rd.img <- NULL
+traffic.data$rd.cl <- NULL
+traffic.data$rd.rp.rpImg <- NULL
+traffic.data$rd.rp.img <- NULL
+traffic.data$rd.rp.type <- NULL
+```
+Let's have a deeper look into the remaining columns
+```{r}
+summary(traffic.data)
+dim(traffic.data)
+names(traffic.data)
+table(traffic.data$rd.new)
+table(traffic.data$rd.stid)
+table(traffic.data$rd.rp.stid)
+table(traffic.data$rd.rp.cm)
+```
+We remain with the following columns:
+$ rd.nm --> road name
+$rd.ri --> road id          
+$ rd.stid --> status of road ranges from 1 - 10
+$ rd.hr --> since how many hrs was the entry created
+$ rd.mn --> since how many mins was the entry created
+$ rd.new --> boolean value that needs further investigation
+$ rd.strq --> boolean value that needs further investigation
+$ rd.cmrq --> boolean value that needs further investigation
+$ rd.rp.nm --> reporter user name
+$ rd.rp.fullnm --> reporter full name
+$ rd.rp.hr --> since how many hrs was the report created
+$ rd.rp.mn --> since how many hrs was the report created
+$ rd.rp.stid --> status of report ranged from 1 - 10
+$ rd.rp.cm --> comment on the report
+$ rd.rp.cmid --> id of the created report
+
+Assuming that each report has a unique id, and since the data is crawled every 30 mins, the crawled data of some roads might not change, thus the same report will be crawled. We take a look and remove all duplicates.
+
+```{r}
+traffic.frame <- data.frame(traffic.data)
+traffic.data <- traffic.data[!duplicated(traffic.data$rd.rp.cmid),]
+traffic.data %>% dim()
+traffic.frame %>% dim()
+```
+
+#Data prepration:
+
+Start by breaking the "crawl_date"" column, extract the time, and add new column "crawl_time"
+```{r}
+traffic.data <- traffic.data %>% mutate(crawl_time = gsub("[^0-9]+ \\d+", "\\1", crawl_date))
+```
+break the "crawl_date"" column, extract the date, and add new column "crawl_date"
+```{r}
+traffic.data$crawl_day <- stri_extract_first_regex(traffic.data$crawl_date, "[0-9]+")
+traffic.data$crawl_day <- paste("2016-02-", traffic.data$crawl_day, sep = "")
+```
+Concatinate both columns; "crawl_day" and "crawl_time" producing "new_crawl_date" column and fixing the time zone to Egypt
+```{r}
+traffic.data$new_crawl_date <- paste(traffic.data$crawl_day, traffic.data$crawl_time)
+traffic.data$new_crawl_date <- as.POSIXct(traffic.data$new_crawl_date,format="%Y-%m-%d %H:%M:%OS", tz = "UTC")
+attr(traffic.data$new_crawl_date, "tzone") <- "Egypt"
+```
+Since we adjusted the crawl_date column only, which differs than the actual time when the report was created. We get the actual time of report creation by subtracting the rd.rp.hr (number of hours since created) from new_crawl_date, and same for the rd.rp.mn
+```{r}
+traffic.data$actual_report_time <- traffic.data$new_crawl_date - (traffic.data$rd.rp.hr*60*60) - (traffic.data$rd.rp.mn * 60)
+```
+Create a new Column "Speed" which indicated the speed of the road as reported by either the users or the automated reports.
+```{r}
+traffic.data$speed <- stri_extract_first_regex(traffic.data$rd.rp.cm, "([0-9]+ كم/س)|([0-9]+ km/h)")
+traffic.data$speed <- stri_extract_first_regex(traffic.data$speed, "[0-9]+")
+traffic.data$speed <- as.numeric(as.character(traffic.data$speed))
+```
+Keep on inspecting the date
+```{r}
+traffic.data %>% filter(rd.rp.cm == "radar") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "lagna") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "حادثة") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "لجنة") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "accident") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "رادار") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "ردار") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+grepl("(za7ma)", traffic.data$rd.rp.cm)
+grepl("(حادث)", traffic.data$rd.rp.cm)
+```
+Noticed that some reports are just questions asked by the users on the state of the road; thus add a new column "question" whose value will be 1 if the report was a question, 0 otherwise.
+```{r}
+traffic.data$question <- stri_extract_first_regex(traffic.data$rd.rp.cm, "(\\?) | (\\؟)")
+traffic.data$question <- ifelse(grepl("(?) | (؟)", traffic.data$question), 1, 0)
+traffic.data$question %>% table()
+```
+The given data doesn't indicate whether the road belongs to Alex or Cairo, thus after checking the HTML of bey2ollak, a request which returns two XML files having the roads of each city respictively. Having the XML parsed to CSV; we can load the roads of each city in their corresponding tables and remove the unnecessary columns, just keep name and id of the road.
+```{r}
+cairo <- read.csv("~/Desktop/DataScience/cairo.csv", stringsAsFactors = FALSE, fileEncoding="UTF-8")
+cairo %>% dim
+cairo %>% summary()
+cairo <- cairo[-c(3:13)]
+
+alex <- read.csv("~/Desktop/DataScience/alex.csv", stringsAsFactors = FALSE, fileEncoding="UTF-8")
+alex %>% dim()
+alex %>% summary()
+alex <- alex[-c(3:10)]
+```
+Inspectin the crawled data, we find some added roads since we last crawled the data 21/02, Also we find that the ids, of some roads in our data had changed i.e
+```{r}
+traffic.data %>% filter(rd.ri == 520) %>% select(rd.nm)
+```
+Thus maybe Bey2ollak just changed their database!
+
+We add a new column "city" in our data whose value is 0 if Cairo, and 1 if Alex
+```{r}
+traffic.data %>% mutate(city = ifelse(rd.ri %in% cairo$ri, 0, ifelse(rd.ri %in% alex$ri, 1, NA))) %>% select(rd.nm, city) %>% unique()
+traffic.data <- traffic.data %>% mutate(city = ifelse(rd.ri %in% cairo$ri, 0, ifelse(rd.ri %in% alex$ri, 1, NA)))
+```
+Check whether there exists any NA values due to database changes
+```{r}
+traffic.data %>% mutate(city = ifelse(rd.ri %in% cairo$ri, 0, ifelse(rd.ri %in% alex$ri, 1, NA))) %>% select(rd.nm, rd.ri, city) %>% filter(is.na(city)) %>% unique()
+```
+We get five roads of missing values, thus will fix the "city" column manually as follows
+```{r}
+traffic.data[traffic.data$rd.ri == 547,]$city <- 0
+traffic.data[traffic.data$rd.ri == 678,]$city <- 0
+traffic.data[traffic.data$rd.ri == 545,]$city <- 0
+traffic.data[traffic.data$rd.ri == 520,]$city <- 1
+traffic.data[traffic.data$rd.ri == 485,]$city <- 1
+```
+Last make sure that no NA's
+```{r}
+traffic.data %>% select(city, rd.ri) %>% filter(is.na(city)) %>% unique()
+```
+Now we can start with our analysis answering many questions arised while inspecting the data:
+
+#Descriptive Analysis:
+Each point below represents a question and how we investigated to answer it. 
+1- let's plot the number of reports along the day hours
+```{r}
+traffic.data %>% separate(actual_report_time, into=c("report_date","report_time"), sep =" ") %>% group_by(report_time) %>% summarize(number=length(rd.rp.cmid)) %>% ggplot(aes(x=report_time, y=number)) + geom_bar(stat = 'identity')
+```
+The plotted data makes sense as it indicates that the quitest hours are from 1 am till 4 am, and the highest rate of reports is during the rush hours, which are in the morning 6 am till 8 am and from 1 pm till 5 pm.  
+
+2- Let's investigate through the 10 report statuses we have :
+```{r}
+traffic.data %>% filter(rd.rp.stid == 10) %>% select(rd.rp.cm)
+```
+repeating the above function replacing the rd.rp.stid from 1 -> 10, we reasoned the report statuses as follows:
+1 --> 7alawa
+2 --> lazez
+3 --> mashy
+4 --> za7ma
+5 --> mafeesh 2amal
+6 --> so2al
+7 --> lagna/radar
+8 --> 7adsa
+9 --> 3otl
+10 --> gps Reporter
+thus, the question column that we added previously could be replaced by checking whether the status of the report = 6
+
+We plot the number of reports of each status
+```{r}
+traffic.data %>% group_by(rd.rp.stid) %>% summarise(n=length(rd.rp.cmid)) %>% ggplot(aes(x=rd.rp.stid, y=n)) + geom_bar(stat = 'identity')
+```
+
+3- Let's calculate the average speed of the top 10 roads of highest reporting rate.
+```{r}
+top_10 <- traffic.data %>% group_by(rd.ri) %>% summarize(count=length(rd.rp.cmid)) %>% arrange(desc(count)) %>% head(10)
+traffic.data[is.na(traffic.data$speed),]$speed <- 0
+speeds <- traffic.data %>% filter(speed != 0)
+speeds %>% filter(rd.ri %in% top_10$rd.ri) %>% group_by(rd.ri) %>% summarize(speed=mean(speed))
+speeds %>% filter(rd.ri %in% top_10$rd.ri) %>% group_by(rd.ri) %>% summarize(s=mean(speed)) %>% ggplot(aes(x=rd.ri, y=s)) + geom_bar(stat = 'identity')
+```
+And the roads are:
+      rd.ri     speed
+      (int)     (dbl)
+       31     68.97272       Da2ery;Autostrad To Moneeb
+       32     69.27468       Da2ery;Moneeb To Autostrad
+      164     55.36564       Kobry 6 October;Mohandesin To Ta7rir
+      165     55.31048       Kobry 6 October;Ta7rir To Madinet Nasr
+      166     60.75797       Kobry 6 October;Madinet Nasr To Ta7rir
+      167     51.53032       Kobry 6 October;Ta7rir To Mohandesin
+      282     75.51525       Da2ery;Sokhna Exit To Autostrad
+      307     131.68868      Sa7rawy;Cairo To Alex
+      520     129.98000      Sa7rawy;Alex To Cairo
+      553     80.12701       Me7war;Sa7rawy To Da2ery
+The output makes sense, specially "sa7rawy" roads.
+
+4- Cairo Vs. Alex:
+Let's plot the number of reports in each city
+```{r}
+traffic.data %>% group_by(city) %>% summarise(c = length(rd.rp.cmid))
+traffic.data %>% group_by(city) %>% summarise(c = length(rd.rp.cmid)) %>% ggplot(aes(x=city, y=c)) + geom_bar(stat = 'identity')
+a <- traffic.data %>% filter(city == 1)
+c <- traffic.data %>% filter(city == 0)
+```
+Since number of reports is not that significat, we proceed by classifying the reports into good and bad reports accoriding to the status of the report. if Status is 4, 5, 8, 9 then it is considered to be a bad report, else if 1, 2, 3 then it is considered to be a good report. We calcuate the ration between both of them for each city.
+```{r}
+## good Vs bad = 11396 reports Vs. 597 reports with ratio approx 19:1
+bad_alex_reports <- a %>% filter(rd.rp.stid == 4 | rd.rp.stid == 5 | rd.rp.stid == 8 | rd.rp.stid == 9 ) %>% summarise(c = length(rd.rp.cmid))
+good_alex_reports <- a %>% filter(rd.rp.stid == 1 | rd.rp.stid == 2 | rd.rp.stid == 3 ) %>% summarise(c = length(rd.rp.cmid))
+
+# good Vs bad = 62143 reports Vs. 21404 reports with ratio approx 3:1
+good_cairo_reports <- c %>% filter(rd.rp.stid == 1 | rd.rp.stid == 2 | rd.rp.stid == 3 ) %>% summarise(c = length(rd.rp.cmid))
+bad_cairo_reports <- c %>% filter(rd.rp.stid == 4 | rd.rp.stid == 5 | rd.rp.stid == 8 | rd.rp.stid == 9 ) %>% summarise(c = length(rd.rp.cmid))
+
+```
+The number of good reports in Alex are more than that in Cairo.
+
+Let's calculate and plot the average speed of the top 10 more reported roads in both Alex and Cairo:
+```{r}
+top_10_cairo <- c %>% group_by(rd.ri) %>% summarize(count=length(rd.rp.cmid)) %>% arrange(desc(count)) %>% head(10)
+cairo_speeds <- speeds %>% filter(rd.ri %in% top_10_cairo$rd.ri) %>% group_by(rd.ri) %>% summarize(speed=mean(speed))
+left_join(top_10_cairo, cairo_speeds, "rd.ri")
+```
+
+      rd.ri  count     speed
+      (int)  (int)     (dbl)
+ 1    166    3218      60.75797
+ 2    32     3075      69.27468
+ 3    31     2998      68.97272
+ 4    164    2862      55.36564
+ 5    167    2318      51.53032
+ 6    307    2297      131.68868
+ 7    165    2249      55.31048
+ 8    282    2047      75.51525
+ 9    553    2009      80.12701
+ 10   281    1951      74.39928
+
+```{r}
+top_10_alex <- a %>% group_by(rd.ri) %>% summarize(count=length(rd.rp.cmid)) %>% arrange(desc(count)) %>% head(10)
+alex_speeds <- speeds %>% filter(rd.ri %in% top_10_alex$rd.ri) %>% group_by(rd.ri) %>% summarize(speed=mean(speed))
+left_join(top_10_alex, alex_speeds, "rd.ri")
+```
+
+     rd.ri  count     speed
+     (int)  (int)     (dbl)
+ 1    520   2621      129.98000
+ 2     99   423        NA ---> speed not reported
+ 3     56   345      43.06481
+ 4     43   344      49.41414
+ 5     55   265      43.39850
+ 6     40   251      47.43299
+ 7     42   248      50.13592
+ 8     39   246      56.95122
+ 9     38   228      53.55932
+ 10    47   191      33.41667
+
+From above it it clear that the average speed of the mostly reported roads in Cairo is higher than that in Alex. Also, notice that all previously mentioned speeds are in km/hr.
+
+5- Let's investigate the main roads I take everyday to-from the GUC.
+The main four roads that I run my analysis on are:
+  1- Da2ery; sokhna exit to autostrad
+  2- Da2ery; autostrad to sokhna exit
+  3- Da2ery; tagamo3 to sokhna exit
+  4- Da2ery; sokhna exit to tagamo3
+  
+Below I'll pick each of the four mentioned roads, will find when is the maximum reporting time, average speed and compare it to legal speed, and the number of reports in each of our 10 categories.
+
+1- Da2ery; sokhna exit to autostrad:
+```{r}
+sokhna_to_autostrad <- traffic.data %>% filter(rd.ri == 282)
+sokhna_to_autostrad %>% separate(actual_report_time, into=c("report_date","report_time"), sep =" ") %>% group_by(report_time) %>% summarize(number=length(rd.rp.cmid)) %>% ggplot(aes(x=report_time, y=number)) + geom_bar(stat = 'identity')
+t <- sokhna_to_autostrad %>% separate(actual_report_time, into=c("report_date","report_time"), sep =" ") %>% group_by(report_time) %>% summarize(number=length(rd.rp.cmid))
+t[ t$number == max( t$number ) , ]
+```
+The Maximum reporting time is at "09:17:30" which makes sense as it is during the rush hours.
+
+```{r}
+sokhna_to_autostrad %>% filter(rd.rp.cmid %in% speeds$rd.rp.cmid) %>% summarise(mean(speed))
+```
+Average speed is 75.51525 km/hr which is higher than legal = "60 km/hr"
+
+```{r}
+sokhna_to_autostrad %>% group_by(rd.rp.stid) %>% summarise(c = length(rd.rp.cmid)) %>%  ggplot(aes(x=rd.rp.stid, y=c)) + geom_bar(stat = 'identity')
+```
+Number of reports in each category. 
+
+2- Da2ery; autostrad to sokhna exit:
+```{r}
+autostrad_to_sokhna <- traffic.data %>% filter(rd.ri == 281)
+autostrad_to_sokhna %>% separate(actual_report_time, into=c("report_date","report_time"), sep =" ") %>% group_by(report_time) %>% summarize(number=length(rd.rp.cmid)) %>% ggplot(aes(x=report_time, y=number)) + geom_bar(stat = 'identity')
+t <- autostrad_to_sokhna %>% separate(actual_report_time, into=c("report_date","report_time"), sep =" ") %>% group_by(report_time) %>% summarize(number=length(rd.rp.cmid))
+t[ t$number == max( t$number ) , ]
+```
+Maximum reporting times is at 07:43:30, 16:00:30, and 17:24:30 which makes sense as it lies in the rush hours too.
+
+```{r}
+autostrad_to_sokhna %>% filter(rd.rp.cmid %in% speeds$rd.rp.cmid) %>% summarise(mean(speed))
+
+```
+Average speed is 74.39928 km/hr which is higher than legal = "60 km/hr"
+
+```{r}
+autostrad_to_sokhna %>% group_by(rd.rp.stid) %>% summarise(c = length(rd.rp.cmid)) %>%  ggplot(aes(x=rd.rp.stid, y=c)) + geom_bar(stat = 'identity')
+```
+Number of reports in each category.
+
+3- Da2ery; tagamo3 to sokhna exit:
+```{r}
+tagamo3_to_sokhna <- traffic.data %>% filter(rd.ri == 318)
+tagamo3_to_sokhna %>% separate(actual_report_time, into=c("report_date","report_time"), sep =" ") %>% group_by(report_time) %>% summarize(number=length(rd.rp.cmid)) %>% ggplot(aes(x=report_time, y=number)) + geom_bar(stat = 'identity')
+t <- tagamo3_to_sokhna %>% separate(actual_report_time, into=c("report_date","report_time"), sep =" ") %>% group_by(report_time) %>% summarize(number=length(rd.rp.cmid))
+t[ t$number == max( t$number ) , ]
+```
+Maximum reporting times is at 16:27:35, 21:01:34, 21:37:34, 22:55:34, only the first makes sense as it also lies in the rush hours, but the rest not that much.
+
+```{r}
+tagamo3_to_sokhna %>% filter(rd.rp.cmid %in% speeds$rd.rp.cmid) %>% summarise(mean(speed))
+```
+Average speed is 87.50582 km/hr which is higher than legal = "60 km/hr"
+
+```{r}
+tagamo3_to_sokhna %>% group_by(rd.rp.stid) %>% summarise(c = length(rd.rp.cmid)) %>%  ggplot(aes(x=rd.rp.stid, y=c)) + geom_bar(stat = 'identity')
+```
+Number of reports in each category.
+
+4- Da2ery; sokhna exit to tagamo3:
+```{r}
+sokhna_to_tagamo3 <- traffic.data %>% filter(rd.ri == 315)
+sokhna_to_tagamo3 %>% separate(actual_report_time, into=c("report_date","report_time"), sep =" ") %>% group_by(report_time) %>% summarize(number=length(rd.rp.cmid)) %>% ggplot(aes(x=report_time, y=number)) + geom_bar(stat = 'identity')
+t <- sokhna_to_tagamo3 %>% separate(actual_report_time, into=c("report_date","report_time"), sep =" ") %>% group_by(report_time) %>% summarize(number=length(rd.rp.cmid))
+t[ t$number == max( t$number ) , ]
+```
+Maximum reporting times is at 17:21:35, and 23:10:33, the first makes sense as it also lies in the rush hours.
+```{r}
+sokhna_to_tagamo3 %>% filter(rd.rp.cmid %in% speeds$rd.rp.cmid) %>% summarise(mean(speed))
+```
+Average speed is 85.96212 km/hr which is higher than legal = "60 km/hr"
+
+```{r}
+sokhna_to_tagamo3 %>% group_by(rd.rp.stid) %>% summarise(c = length(rd.rp.cmid)) %>%  ggplot(aes(x=rd.rp.stid, y=c)) + geom_bar(stat = 'identity')
+```
+Number of reports in each category.
+
+From the previous analysis of those 4 main roads, it is clear that they are typical to reality.
+
+#Other Questions that could be answered:
+- Is the number of reports higher during the holidays or the weekdays?
+- Who reports more, males or females?
+- Till how much extent do accidents contributes in roads blockage?
+- Where is the main points of "lagna/radar" in the main roads?
+
+Also Notice that all the previous analysis needs more investigation and tests in order to 100% be completely sure of the results.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
