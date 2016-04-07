@@ -206,19 +206,7 @@ speeds <- traffic.data %>% filter(speed != 0)
 speeds %>% filter(rd.ri %in% top_10$rd.ri) %>% group_by(rd.ri) %>% summarize(speed=mean(speed))
 speeds %>% filter(rd.ri %in% top_10$rd.ri) %>% group_by(rd.ri) %>% summarize(s=mean(speed)) %>% ggplot(aes(x=rd.ri, y=s)) + geom_bar(stat = 'identity')
 ```
-And the roads are:
-      rd.ri     speed
-      (int)     (dbl)
-       31     68.97272       Da2ery;Autostrad To Moneeb
-       32     69.27468       Da2ery;Moneeb To Autostrad
-      164     55.36564       Kobry 6 October;Mohandesin To Ta7rir
-      165     55.31048       Kobry 6 October;Ta7rir To Madinet Nasr
-      166     60.75797       Kobry 6 October;Madinet Nasr To Ta7rir
-      167     51.53032       Kobry 6 October;Ta7rir To Mohandesin
-      282     75.51525       Da2ery;Sokhna Exit To Autostrad
-      307     131.68868      Sa7rawy;Cairo To Alex
-      520     129.98000      Sa7rawy;Alex To Cairo
-      553     80.12701       Me7war;Sa7rawy To Da2ery
+
 The output makes sense, specially "sa7rawy" roads.
 
 4- Cairo Vs. Alex:
@@ -249,18 +237,7 @@ cairo_speeds <- speeds %>% filter(rd.ri %in% top_10_cairo$rd.ri) %>% group_by(rd
 left_join(top_10_cairo, cairo_speeds, "rd.ri")
 ```
 
-      rd.ri  count     speed
-      (int)  (int)     (dbl)
-## 1    166    3218      60.75797
-## 2    32     3075      69.27468
-## 3    31     2998      68.97272
-## 4    164    2862      55.36564
- 5    167    2318      51.53032
- 6    307    2297      131.68868
- 7    165    2249      55.31048
- 8    282    2047      75.51525
- 9    553    2009      80.12701
- 10   281    1951      74.39928
+
 
 ```{r}
 top_10_alex <- a %>% group_by(rd.ri) %>% summarize(count=length(rd.rp.cmid)) %>% arrange(desc(count)) %>% head(10)
@@ -268,18 +245,6 @@ alex_speeds <- speeds %>% filter(rd.ri %in% top_10_alex$rd.ri) %>% group_by(rd.r
 left_join(top_10_alex, alex_speeds, "rd.ri")
 ```
 
-     rd.ri  count     speed
-     (int)  (int)     (dbl)
-## 1    520   2621      129.98000
-## 2     99   423        NA ---> speed not reported
-## 3     56   345      43.06481
-## 4     43   344      49.41414
-## 5     55   265      43.39850
-## 6     40   251      47.43299
-## 7     42   248      50.13592
-## 8     39   246      56.95122
-## 9     38   228      53.55932
-## 10    47   191      33.41667
 
 From above it it clear that the average speed of the mostly reported roads in Cairo is higher than that in Alex. Also, notice that all previously mentioned speeds are in km/hr.
 
