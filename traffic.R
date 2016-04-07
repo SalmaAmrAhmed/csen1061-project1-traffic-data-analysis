@@ -58,20 +58,25 @@ traffic.data$new_crawl_date <- as.POSIXct(traffic.data$new_crawl_date,format="%Y
 attr(traffic.data$new_crawl_date, "tzone") <- "Egypt"
 
 ##indicate whether report is question about road or not
-traffic.data$question <- stri_extract_first_regex(traffic.data$rd.rp.cm, "\\?")
-traffic.data$question <- ifelse(grepl("(?)", traffic.data$question), 1, 0)
+traffic.data$question <- stri_extract_first_regex(traffic.data$rd.rp.cm, "(\\?) | (\\؟)")
+traffic.data$question <- ifelse(grepl("(?) | (؟)", traffic.data$question), 1, 0)
 traffic.data$question %>% table()
 
 ##extract speed from data
-traffic.data$speed <- stri_extract_first_regex(traffic.data$rd.rp.cm, "[0-9]+ km/h")
+traffic.data$speed <- stri_extract_first_regex(traffic.data$rd.rp.cm, "([0-9]+ كم/س)|([0-9]+ km/h)")
+traffic.data$speed <- stri_extract_first_regex(traffic.data$speed, "[0-9]+")
 traffic.data$speed <- as.numeric(as.character(traffic.data$speed))
 
-##inspect the data
+##inspect the data ... etc.
 traffic.data %>% filter(rd.rp.cm == "radar") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
 traffic.data %>% filter(rd.rp.cm == "lagna") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
 traffic.data %>% filter(rd.rp.cm == "حادثة") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
 traffic.data %>% filter(rd.rp.cm == "لجنة") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
 traffic.data %>% filter(rd.rp.cm == "accident") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "رادار") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+traffic.data %>% filter(rd.rp.cm == "ردار") %>% select(rd.stid, rd.rp.stid, rd.rp.cm)
+grepl("(za7ma)", traffic.data$rd.rp.cm)
+grepl("(حادث)", traffic.data$rd.rp.cm)
 
 
 
